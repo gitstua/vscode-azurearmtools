@@ -9,6 +9,8 @@ import { IParameterDefinition } from "./IParameterDefinition";
 import { IResource } from "./IResource";
 import * as Json from "./JSON";
 import { ParameterDefinition } from "./ParameterDefinition";
+import { IParameterValues } from "./parameterFiles/DeploymentParameters";
+import { ParameterValueDefinition } from "./parameterFiles/ParameterValueDefinition";
 import { Resource } from "./Resource";
 import { TemplateScope, TemplateScopeKind } from "./TemplateScope";
 import { UserFunctionNamespaceDefinition } from "./UserFunctionNamespaceDefinition";
@@ -226,7 +228,9 @@ export enum ExpressionScopeKind {
  */
 export class NestedTemplateInnerScope extends TemplateScopeFromObject {
     public constructor(
+        //        private deploymentTemplate: DeploymentTemplate,
         private nestedTemplateObject: Json.ObjectValue | undefined,
+        private parametersProperty: Json.Property | undefined,
         // tslint:disable-next-line: variable-name
         __debugDisplay: string
     ) {
@@ -237,6 +241,28 @@ export class NestedTemplateInnerScope extends TemplateScopeFromObject {
     }
 
     public readonly scopeKind: TemplateScopeKind = TemplateScopeKind.NestedDeploymentWithInnerScope;
+
+    public getParameterValues(): IParameterValues {
+        return {
+            //parametersParentDocument: this.deploymentTemplate, //asdf?
+            getParameterValue: (parameterName: string): ParameterValueDefinition | undefined => {
+                const parameterProperty =
+                    this.parametersProperty?.value?.asObjectValue?.getProperty(parameterName);
+                return parameterProperty
+                    ? new ParameterValueDefinition(parameterProperty)
+                    : undefined;
+            },
+            parameterValuesDefiniitions: ((): ParameterValueDefinition[] => {
+                const parameterProperties = //asdf?
+                    this.parametersProperty?.value?.asObjectValue?.properties;
+                return parameterProperties
+                    ? parameterProperties.map(p => new ParameterValueDefinition(p))
+                    : [];
+            })() /*asdf*/,
+            parametersObjectValue: this.parametersProperty?.asObjectValue,
+            parametersProperty: this.parametersProperty
+        };
+    }
 
     protected getResources(): IResource[] | undefined {
         return getResourcesFromObject(this, this.nestedTemplateObject);
@@ -284,6 +310,7 @@ export class NestedTemplateOuterScope extends TemplateScope {
 
 // Note: This is here instead of in Resource.ts to avoid a circular dependence
 export function getChildTemplateForResourceObject(
+    //deploymentTemplate: DeploymentTemplate, //asdf needed?  awkward here
     parentScope: TemplateScope,
     resourceObject: Json.ObjectValue | undefined // an element of the "resources" section
 ): TemplateScope | undefined {
@@ -304,8 +331,12 @@ export function getChildTemplateForResourceObject(
     //                 "contentVersion": "1.0.0.0",
     //                 "parameters": {
     //                    ..
+    //             "parameters": {
+    //                 // parameter values to assign to the template's parameter definitions
+    //             }
+    //      }
 
-    // Correct resource type?
+    // Is the resource type a deployment?
     const resourceTypeLC = resourceObject?.getPropertyValue(templateKeys.resourceType)?.asStringValue
         ?.unquotedValue;
     if (resourceTypeLC?.toLowerCase() === deploymentsResourceTypeLC) {
@@ -321,7 +352,14 @@ export function getChildTemplateForResourceObject(
                 case ExpressionScopeKind.outer:
                     return new NestedTemplateOuterScope(parentScope, nestedTemplateObject, `Nested template "${templateName}" with outer scope`);
                 case ExpressionScopeKind.inner:
-                    return new NestedTemplateInnerScope(nestedTemplateObject, `Nested template "${templateName}" with inner scope`);
+                    return new NestedTemplateInnerScope(//asdf
+                        //asdf deploymentTemplate,
+                        nestedTemplateObject,
+                        resourceObject?.getPropertyValue(templateKeys.properties)
+                            ?.asObjectValue
+                            ?.getProperty(templateKeys.parameters),
+                        `Nested template "${templateName}" with inner scope`
+                    );
                 default:
                     assertNever(scopeKind);
             }

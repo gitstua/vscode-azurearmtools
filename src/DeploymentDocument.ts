@@ -169,7 +169,10 @@ export abstract class DeploymentDocument {
 
     // This should be as fast as possible
     // Anything slow should occur during ResolvableCodeLens.resolve()
-    public abstract getCodeLenses(hasAssociatedParameters: boolean): ResolvableCodeLens[];
+    public abstract getCodeLenses(
+        hasAssociatedParameters: boolean,
+        getParameterValues: () => unknown, // circular //asdf Promise<IParameterValues | undefined> //asdf circular?
+    ): ResolvableCodeLens[];  //asdf
 
     // CONSIDER: Should we cache?  But that cache would depend on associatedTemplate not changing, not sure if that's
     // guaranteed.
@@ -192,5 +195,5 @@ export abstract class ResolvableCodeLens extends CodeLens {
     /**
      * Must fill in the code lens title and command, or return false if no longer valid
      */
-    public abstract resolve(associatedDocument: DeploymentDocument | undefined): boolean;
+    public abstract resolve(): Promise<boolean>;
 }
